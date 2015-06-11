@@ -1,0 +1,26 @@
+.example-one-container{
+    width:100%;
+    font-size:50%;
+}
+.example-one-button{
+    cursor:pointer;
+    color:white;
+    background-color:black;
+    width:20%;
+    margin:auto;
+    text-align:center;
+}
+.example-one-response{
+    width:100%;
+    min-height:30px;
+}
+.example-one{
+    width:100%;
+    margin:auto;
+    text-align:center;
+}
+.example-one-post{
+    width:100%;
+    margin:auto;
+    text-align:center;
+}

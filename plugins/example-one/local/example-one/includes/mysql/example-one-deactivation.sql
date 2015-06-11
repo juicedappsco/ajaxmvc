@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS `ajaxmvc_example_one_table`;

@@ -1,0 +1,4 @@
+<?php
+/**
+ * hook plugin functions
+ */
