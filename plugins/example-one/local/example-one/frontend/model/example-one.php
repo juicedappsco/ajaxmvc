@@ -154,73 +154,40 @@ class example_one_model extends ajaxmvc_core_model {
          //change state of this model to logical
          $this->create_logical();
          
-        //delete everything from model one based on join with model two
-        /* EXAMPLE COMMENTED:
-        $this->delete( array('ajaxmvc_ajaxmvc_example_one_model','ajaxmvc_ajaxmvc_example_two_model') )
-             ->from( 'ajaxmvc_ajaxmvc_example_one_model' )
-             ->join( 'ajaxmvc_ajaxmvc_example_two_model', $join_type = null )
-             ->on( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ) )
-             ->load();
-		*/
-		
-		/**
-		 * OR try with FROM join
-		 */
-		 
-		//delete everything from model one based on FROM join with model two
-		$this->delete( array('ajaxmvc_ajaxmvc_example_one_model') )
+        //delete everything from model one based on FROM join with model two
+        $this->delete( array('ajaxmvc_ajaxmvc_example_one_model') )
              ->from(array('ajaxmvc_ajaxmvc_example_one_model','ajaxmvc_ajaxmvc_example_two_model'))
-		 	 ->where(array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ))
-		 	 ->load();
-		
+              ->where(array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ))
+              ->load();
+        
         //insert some data into model one based on select with join
         $this->insert_into( 
                 'ajaxmvc_ajaxmvc_example_one_model', 
                 array( $this->primary_key,'example_one_integer', 'example_one_varchar', 'example_one_decimal', 'example_one_boolean' ) 
              )
              ->select(array('example_two_id',
-             	 			'example_two_integer',
-							'example_two_varchar',
-							'example_two_decimal',
-							'example_two_boolean'))
+                            'example_two_integer',
+                            'example_two_varchar',
+                            'example_two_decimal',
+                            'example_two_boolean'))
              ->from('ajaxmvc_ajaxmvc_example_two_model')
              ->join( 'ajaxmvc_ajaxmvc_example_three_model', $join_type = null )
              ->on( array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ) )
              ->load();
-		 		
-		/**
-		 * OR try with FROM join
-		 */
-		 
-		 //insert some data into model one based on select with FROM join
-		 /* EXAMPLE COMMENTED:
-		 $this->insert_into( 
-                'ajaxmvc_ajaxmvc_example_one_model', 
-                array( $this->primary_key,'example_one_integer', 'example_one_varchar', 'example_one_decimal', 'example_one_boolean' ) 
-             )
-             ->select(array('example_two_id',
-             	 			'example_two_integer',
-							'example_two_varchar',
-							'example_two_decimal',
-							'example_two_boolean'))
-             ->from(array('ajaxmvc_ajaxmvc_example_two_model','ajaxmvc_ajaxmvc_example_three_model'))
-             ->where(array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ))
-             ->load();
-		 */
-		 
-		 //clear ecords before inserting them
-		 $this->destroy(786)->load();
-		 $this->destroy(888)->load();
-		 
-		 //insert some random values
-		 $this->insert_into( 
+         
+         //clear ecords before inserting them
+         $this->destroy(786)->load();
+         $this->destroy(888)->load();
+         
+         //insert some random values
+         $this->insert_into( 
                 'ajaxmvc_ajaxmvc_example_one_model', 
                 array( 'example_one_id','example_one_integer', 'example_one_varchar', 'example_one_decimal', 'example_one_boolean' ) 
             )
             ->values( array(array( 786, 2500, 'ten', 1.2200, false ), array( 888,2535, 'nine', 999.99, false )))->load();
 
-		 //update some records based on a join
-		 $result = $this->update('ajaxmvc_ajaxmvc_example_one_model')
+         //update some records based on a join
+         $result = $this->update('ajaxmvc_ajaxmvc_example_one_model')
              ->join( 'ajaxmvc_ajaxmvc_example_two_model', $join_type = null )
              ->on( array( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ), array( 'ajaxmvc_ajaxmvc_example_one_model.example_one_decimal', '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_decimal' ) ) )
              ->join( 'ajaxmvc_ajaxmvc_example_three_model', $join_type = null )
@@ -228,23 +195,23 @@ class example_one_model extends ajaxmvc_core_model {
              ->set( array( 'example_one_integer' => 46, 'example_one_varchar' => 'hoot', 'example_three_integer' => 123, 'example_two_integer' => 456 ) )
              ->load();
              
-		 //update some more records
-		 $result = $this->update('ajaxmvc_ajaxmvc_example_one_model')
+         //update some more records
+         $result = $this->update('ajaxmvc_ajaxmvc_example_one_model')
              ->set( array( 'example_one_integer' => 32, 'example_one_varchar' => 'scoot', ) )
              ->where( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '<', 4 ) )
              ->load();
 
          //update some more records based on a FROM join
-		 $result = $this->update(array('ajaxmvc_ajaxmvc_example_one_model','ajaxmvc_ajaxmvc_example_two_model','ajaxmvc_ajaxmvc_example_three_model'))
-		 	 ->set( array( 'example_one_integer' => 97, 'example_one_varchar' => 'hi', 'example_three_integer' => 200, 'example_two_integer' => 500 ) )
-		 	 ->where( array( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ), array( 'and', 'ajaxmvc_ajaxmvc_example_one_model.example_one_decimal', '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_decimal' ) ) )
-		 	 ->_and_(array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ))
-		 	 ->_and_( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '<', 3 ) )
-		 	 ->load();
-		 	 
-		 //run an arbitrary select statement
-		 $result = $this->select(array('*'))
-		 	 ->from('ajaxmvc_ajaxmvc_example_one_model')
+         $result = $this->update(array('ajaxmvc_ajaxmvc_example_one_model','ajaxmvc_ajaxmvc_example_two_model','ajaxmvc_ajaxmvc_example_three_model'))
+              ->set( array( 'example_one_integer' => 97, 'example_one_varchar' => 'hi', 'example_three_integer' => 200, 'example_two_integer' => 500 ) )
+              ->where( array( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ), array( 'and', 'ajaxmvc_ajaxmvc_example_one_model.example_one_decimal', '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_decimal' ) ) )
+              ->_and_(array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ))
+              ->_and_( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '<', 3 ) )
+              ->load();
+              
+         //run an arbitrary select statement
+         $result = $this->select(array('*'))
+              ->from('ajaxmvc_ajaxmvc_example_one_model')
              ->join( 'ajaxmvc_ajaxmvc_example_two_model', $join_type = null )
              ->on( array( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ), array( 'ajaxmvc_ajaxmvc_example_one_model.example_one_decimal', '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_decimal' ) ) )
              ->join( 'ajaxmvc_ajaxmvc_example_three_model', $join_type = null )
@@ -400,6 +367,8 @@ class example_one_model extends ajaxmvc_core_model {
         //load model one and print
         $results = ( new example_one_model() )->get()->order_by([( new example_one_model() )->primary_key])->load();
         $this->print_results($results);
+        
+        //return result
         return $result;
     }
-}	
+}    

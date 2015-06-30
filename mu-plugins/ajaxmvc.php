@@ -67,7 +67,7 @@ require_once( AM_CORE_MODULE_PATH.'src/class-ajaxmvc-environment.php' );
 require_once( AM_CORE_MODULE_PATH.'src/class-ajaxmvc-activation.php' );
 
 /**
- * Core state class.
+ * Core plugin class.
  */
 require_once( AM_CORE_MODULE_PATH.'src/class-ajaxmvc-plugin.php' );
 

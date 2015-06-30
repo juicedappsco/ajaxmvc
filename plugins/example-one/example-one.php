@@ -14,7 +14,3 @@
  * @since 1.0.0
  */
 define( 'AM_EXAMPLE_ONE_MODULE_PATH', dirname( __FILE__ ).'/local/' );
-function print_rules( $rules ) {
-    return $rules;
-}
-add_filter( 'mod_rewrite_rules', 'print_rules' );
