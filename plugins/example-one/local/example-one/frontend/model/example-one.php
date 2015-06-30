@@ -151,8 +151,8 @@ class example_one_model extends ajaxmvc_core_model {
         //delete one attribute of this model
         $this->destroy(2)->load();
         
-         //change state of this model to logical
-         $this->create_logical();
+        //change state of this model to logical
+        $this->create_logical();
          
         //delete everything from model one based on FROM join with model two
         $this->delete( array('ajaxmvc_ajaxmvc_example_one_model') )
@@ -175,7 +175,7 @@ class example_one_model extends ajaxmvc_core_model {
              ->on( array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ) )
              ->load();
          
-         //clear ecords before inserting them
+         //clear records before inserting them
          $this->destroy(786)->load();
          $this->destroy(888)->load();
          
