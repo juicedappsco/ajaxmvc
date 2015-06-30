@@ -13,7 +13,7 @@ THIS IS NOT AN ATTEMPT TO REWRITE WORDPRESS (not yet any way -- haha jk -- or no
 As everyone knows WordPress uses an Event Based Architecture and there has been an outcry against other attempts at 
 creating an MVC architecture over the WP Core and existing Event Based Architecture. I have seen successful integration of Events 
 in an MVC framework like Magento, and believe that a successful integration of an MVC framework for plugins would be of great use to 
-WordPress Developers familiar with MVC - as MVC appears to be the standard in the industry. As I have seen a recent trend of some developers 
+developers familiar with MVC - as MVC appears to be the standard in the industry. As I have seen a recent trend of some developers 
 using WP as an application framework, a successful MVC integration could potentially make WP a well rounded and robust Web Application Framework.
 
 MVC:

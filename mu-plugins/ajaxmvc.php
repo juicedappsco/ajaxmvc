@@ -67,9 +67,9 @@ require_once( AM_CORE_MODULE_PATH.'src/class-ajaxmvc-environment.php' );
 require_once( AM_CORE_MODULE_PATH.'src/class-ajaxmvc-activation.php' );
 
 /**
- * Core activation class.
+ * Core state class.
  */
-require_once( AM_CORE_MODULE_PATH.'src/class-ajaxmvc-state.php' );
+require_once( AM_CORE_MODULE_PATH.'src/class-ajaxmvc-plugin.php' );
 
 /**
  * Instantiate core router object and add it to
@@ -107,8 +107,8 @@ $ajaxmvc_core_activation->manage_ajaxmvc_activation();
 /**
  * set plugin state
  */
-$ajaxmvc_core_state = new ajaxmvc_core_state();
-$ajaxmvc_core_state->manage_plugin_state();
+$ajaxmvc_core_plugin = new ajaxmvc_core_plugin();
+$ajaxmvc_core_plugin->manage_plugin_state();
 
 /**
  * load plugins namespaces etc.

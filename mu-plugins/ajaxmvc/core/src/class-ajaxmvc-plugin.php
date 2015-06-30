@@ -7,7 +7,7 @@
  *
  * @since 1.0.0
  */
-class ajaxmvc_core_state extends ajaxmvc_core_object_factory {
+class ajaxmvc_core_plugin extends ajaxmvc_core_object_factory {
     /**
      * Private use of global WordPress db var.
      *

@@ -22,6 +22,14 @@ class example_two_model extends ajaxmvc_core_model {
         ),
     );
     
+    //identify specific types
+    public $physical_type = array(
+        'example_two_integer'       => 'int(10)',
+        'example_two_varchar'       => 'varchar(100)',
+        'example_two_decimal'       => 'float(12,6)',
+        'example_two_boolean'       => 'int(1)',
+    );
+    
     //load some data
     function load_data(){
        $this->save(

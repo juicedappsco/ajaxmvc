@@ -23,11 +23,11 @@ class example_one_model extends ajaxmvc_core_model {
     public $physical_type = array(
         'example_one_integer'       => 'int(10)',
         'example_one_varchar'       => 'varchar(100)',
-        'example_one_decimal'       => 'float(12,5)',
+        'example_one_decimal'       => 'float(12,6)',
         'example_one_boolean'       => 'int(1)',
     );
     
-    //create an index for the model
+    //identify an index for the model
     public $index = array(
         'index_example_one_id_example_one_integer'  => array(
             'example_one_id',
@@ -35,7 +35,7 @@ class example_one_model extends ajaxmvc_core_model {
         ),
     );
     
-    //create a unque key for the model
+    //identify a unique key for the model
     public $unique_key = array(
         'unique_key_example_one_id_example_one_integer'  => array(
             'example_one_id',
@@ -49,8 +49,7 @@ class example_one_model extends ajaxmvc_core_model {
     function load_data(){
         
         //load this models data
-        $this
-        ->save(
+        $this->save(
             array(
                 array(
                     $this->primary_key      => 1,
@@ -95,7 +94,7 @@ class example_one_model extends ajaxmvc_core_model {
     }
     
     function example_one_results() {
-             
+
         //load all records of this model     
         $result = $this->get()->load();
         
@@ -108,10 +107,8 @@ class example_one_model extends ajaxmvc_core_model {
         
         //save one attribute of this model
         $this->example_one_id = 37;
-        $this->example_one_integer = 37;
+        $this->example_one_integer = 99;
         $this->save()->load();
-        //this must be unset
-        unset( $this->example_one_integer );
         
         //save one attribute of this model
         $result = $this->save( 'example_one_decimal', 7.77, 12985 )->load();
@@ -154,81 +151,112 @@ class example_one_model extends ajaxmvc_core_model {
         //delete one attribute of this model
         $this->destroy(2)->load();
         
-        /**
-         * IMPORTANT!!!
-         *
-         * PHYSICAL STATE is required for the following methods or an exception will be thrown:
-         *         delete(), update(), insert()
-         *
-         * developers are encouraged to use the following methods for the below illustrated operations
-         * they are valid in either a logical or physical state:
-         *        destroy(), save()
-         * 
-         * PHYSICAL state is HIGHLY recommended for production
-         * LOGICAL state is recommended for early development, once you are confident in the integrity
-         * of your model it is encouraged to convert to PHYSICAL state in late stages of development
-         * 
-         * that is the point of this framework, the advantadges and the flexibility of EAV in development
-         * and the advantadges of Traditional DB Schema in production, the framework can easily
-         * transition between both states, any modifications made to the physical schema will be retained when
-         * moving to logical state, including types, keys etc. etc., all data will be retained as well
-         * 
-         * if you must you may transition between physical state and logical state in order to use
-         * these methods in development
-         *        $this->create_logical();
-         *        $this->create_physical();
-         */
+         //change state of this model to logical
+         $this->create_logical();
+         
         //delete everything from model one based on join with model two
-        $this->delete( array('ajaxmvc_ajaxmvc_example_one_model') )
+        /* EXAMPLE COMMENTED:
+        $this->delete( array('ajaxmvc_ajaxmvc_example_one_model','ajaxmvc_ajaxmvc_example_two_model') )
              ->from( 'ajaxmvc_ajaxmvc_example_one_model' )
              ->join( 'ajaxmvc_ajaxmvc_example_two_model', $join_type = null )
              ->on( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ) )
              ->load();
-         
-        //insert some data into model one based on select from example three
+		*/
+		
+		/**
+		 * OR try with FROM join
+		 */
+		 
+		//delete everything from model one based on FROM join with model two
+		$this->delete( array('ajaxmvc_ajaxmvc_example_one_model') )
+             ->from(array('ajaxmvc_ajaxmvc_example_one_model','ajaxmvc_ajaxmvc_example_two_model'))
+		 	 ->where(array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ))
+		 	 ->load();
+		
+        //insert some data into model one based on select with join
         $this->insert_into( 
                 'ajaxmvc_ajaxmvc_example_one_model', 
                 array( $this->primary_key,'example_one_integer', 'example_one_varchar', 'example_one_decimal', 'example_one_boolean' ) 
              )
-             ->select(array('*'))
-             ->from('ajaxmvc_ajaxmvc_example_three_model')
+             ->select(array('example_two_id',
+             	 			'example_two_integer',
+							'example_two_varchar',
+							'example_two_decimal',
+							'example_two_boolean'))
+             ->from('ajaxmvc_ajaxmvc_example_two_model')
+             ->join( 'ajaxmvc_ajaxmvc_example_three_model', $join_type = null )
+             ->on( array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ) )
+             ->load();
+		 		
+		/**
+		 * OR try with FROM join
+		 */
+		 
+		 //insert some data into model one based on select with FROM join
+		 /* EXAMPLE COMMENTED:
+		 $this->insert_into( 
+                'ajaxmvc_ajaxmvc_example_one_model', 
+                array( $this->primary_key,'example_one_integer', 'example_one_varchar', 'example_one_decimal', 'example_one_boolean' ) 
+             )
+             ->select(array('example_two_id',
+             	 			'example_two_integer',
+							'example_two_varchar',
+							'example_two_decimal',
+							'example_two_boolean'))
+             ->from(array('ajaxmvc_ajaxmvc_example_two_model','ajaxmvc_ajaxmvc_example_three_model'))
+             ->where(array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ))
+             ->load();
+		 */
+		 
+		 //clear ecords before inserting them
+		 $this->destroy(786)->load();
+		 $this->destroy(888)->load();
+		 
+		 //insert some random values
+		 $this->insert_into( 
+                'ajaxmvc_ajaxmvc_example_one_model', 
+                array( 'example_one_id','example_one_integer', 'example_one_varchar', 'example_one_decimal', 'example_one_boolean' ) 
+            )
+            ->values( array(array( 786, 2500, 'ten', 1.2200, false ), array( 888,2535, 'nine', 999.99, false )))->load();
+
+		 //update some records based on a join
+		 $result = $this->update('ajaxmvc_ajaxmvc_example_one_model')
+             ->join( 'ajaxmvc_ajaxmvc_example_two_model', $join_type = null )
+             ->on( array( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ), array( 'ajaxmvc_ajaxmvc_example_one_model.example_one_decimal', '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_decimal' ) ) )
+             ->join( 'ajaxmvc_ajaxmvc_example_three_model', $join_type = null )
+             ->on( array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ) )
+             ->set( array( 'example_one_integer' => 46, 'example_one_varchar' => 'hoot', 'example_three_integer' => 123, 'example_two_integer' => 456 ) )
              ->load();
              
-        //update model one based on join with model two
-        $this->update('ajaxmvc_ajaxmvc_example_one_model')
+		 //update some more records
+		 $result = $this->update('ajaxmvc_ajaxmvc_example_one_model')
+             ->set( array( 'example_one_integer' => 32, 'example_one_varchar' => 'scoot', ) )
+             ->where( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '<', 4 ) )
+             ->load();
+
+         //update some more records based on a FROM join
+		 $result = $this->update(array('ajaxmvc_ajaxmvc_example_one_model','ajaxmvc_ajaxmvc_example_two_model','ajaxmvc_ajaxmvc_example_three_model'))
+		 	 ->set( array( 'example_one_integer' => 97, 'example_one_varchar' => 'hi', 'example_three_integer' => 200, 'example_two_integer' => 500 ) )
+		 	 ->where( array( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ), array( 'and', 'ajaxmvc_ajaxmvc_example_one_model.example_one_decimal', '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_decimal' ) ) )
+		 	 ->_and_(array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ))
+		 	 ->_and_( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '<', 3 ) )
+		 	 ->load();
+		 	 
+		 //run an arbitrary select statement
+		 $result = $this->select(array('*'))
+		 	 ->from('ajaxmvc_ajaxmvc_example_one_model')
              ->join( 'ajaxmvc_ajaxmvc_example_two_model', $join_type = null )
-             ->on( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ) )
-             ->set( array( 'example_one_integer' => 14, 'example_one_varchar' => 'hi' ) )
-             ->where( array( $this->primary_key, '=', 27 ) )
+             ->on( array( array( 'ajaxmvc_ajaxmvc_example_one_model.'.$this->primary_key, '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_id' ), array( 'ajaxmvc_ajaxmvc_example_one_model.example_one_decimal', '=', 'ajaxmvc_ajaxmvc_example_two_model.example_two_decimal' ) ) )
+             ->join( 'ajaxmvc_ajaxmvc_example_three_model', $join_type = null )
+             ->on( array( 'ajaxmvc_ajaxmvc_example_two_model.example_two_id', '=', 'ajaxmvc_ajaxmvc_example_three_model.example_three_id' ) )
              ->load();
-         
-         //clear record before inserting
-         $this->destroy(7)->load();
-         //insert one record into model one
-         $this->insert_into( 
-                'ajaxmvc_ajaxmvc_example_one_model', 
-                array( $this->primary_key,'example_one_integer', 'example_one_varchar', 'example_one_decimal', 'example_one_boolean' ) 
-             )
-             ->values( array( 7, 2500, '2.00', 1.00, false ) )
-             ->load();
-         
-         //clear record before inserting
-         $this->destroy(1235678)->load();
-         $this->destroy(15854)->load();
-         //insert multiple records into model one
-         $this->insert_into( 
-                'ajaxmvc_ajaxmvc_example_one_model', 
-                array( $this->primary_key,'example_one_integer', 'example_one_varchar', 'example_one_decimal', 'example_one_boolean' ) 
-             )
-             ->values( array(array( 1235678, 2500, 'ten', 1.2200, false ), array( 15854,2535, 'nine', 999.99, false )))
-             ->load();
-        
+
         /**
          * I realize this query is ridiculous but it is written in order to show
          * the versatility and that the syntactical integrity of the SQL language
          * is preserved when using the sql object chain methods
          */
-        $result = $this->select( 
+        $this->print_results( $this->select( 
             array(
                     'ajaxmvc_ajaxmvc_collection_entity.entity_id',
                     'COUNT(*) as count',
@@ -333,6 +361,7 @@ class example_one_model extends ajaxmvc_core_model {
             ->having(
                 array(
                     array( 'ajaxmvc_ajaxmvc_collection_entity.entity_id', '!=', 'a' ),
+                    array( 'and','ajaxmvc_ajaxmvc_collection_entity.entity_id', '!=', 'b' ),
                     array( 'and'=> 
                         array( 
                             array( 'ajaxmvc_ajaxmvc_collection_entity.entity_id', '!=', 'b' ) 
@@ -366,10 +395,11 @@ class example_one_model extends ajaxmvc_core_model {
                 )         
             )
             ->limit( array( '0', '100' ) )
-            ->load( $sql_dump = 0 );
-            
-        //load model one
-        $result = $this->get()->order_by(array('example_one_id'))->load();
+            ->load( $sql_dump = 0 ) );
+        
+        //load model one and print
+        $results = ( new example_one_model() )->get()->order_by([( new example_one_model() )->primary_key])->load();
+        $this->print_results($results);
         return $result;
     }
-}
+}	

@@ -72,6 +72,20 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
     public $is_modification_query = false;
     
     public $collections = array();
+    
+    public $join_meta_data = array();
+    
+    public $update_multiple_tables = false;
+    
+    public $is_from_join = false;
+    
+    public $update_set_array = array();
+    
+    public $delete_array = array();
+    
+    public $insert_into_array = array();
+    
+    public $insert_into_values_array = array();
 
     /**
      * Sets private property $wpdb to global WordPress db object.
@@ -322,6 +336,37 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
      * Utility functions
      */
     
+    public function print_results( $results ) {
+?>
+    <?php if ( is_array( $results ) ): ?>
+        <table>
+            <thead>
+                <tr>
+                    <?php if ( is_array( $results[0] ) ): ?>
+                        <?php foreach ( $results[0] as $attribute => $value ): ?>
+                                <th style="text-align: center;">
+                                    <?php echo ucwords( strtolower( preg_replace('/(-|_)/', ' ', $attribute ) ) );?>
+                                </th>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ( $results as $index => $record ): ?>
+                    <tr>
+                        <?php foreach ( $record as $attribute => $value ): ?>
+                            <td style="text-align: center;">
+                                <?php echo $value.':'.gettype( $value ); ?>
+                            </td>
+                        <?php endforeach; ?>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    <?php endif; ?>
+<?php
+    }
+     
     public function query( $sql ) {
         if ( $this->wpdb->use_mysqli ) {
             return mysqli_query( $this->wpdb->dbh, $sql ) or 
@@ -538,26 +583,62 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
      */
     
     public function set_all_collection_characteristics() {
-        $this->set_collection_characteristic_name( $this->name, 'PRIMARY_KEY', $this->primary_key ); 
-        $characteristics = array( 'index', 'unique_key', 'foreign_key' );
+        if ( 'string' != gettype( $this->primary_key ) ) {
+            ajaxmvc_core_exception::throw_error( $this, '$this->primary_key can only be of type string.' );
+        }
+        $this->primary_key = array(
+            'primary'  => array(
+                $this->primary_key,
+            ),
+        );
+        $characteristics = array( 'primary_key', 'index', 'unique_key', 'foreign_key' );
         foreach( $characteristics as $characteristic ) {
             if ( isset( $this->$characteristic ) && is_array( $this->$characteristic ) ) {
                 foreach( $this->$characteristic as $characteristic_name => $characteristics_values ) {
                     if ( is_array( $characteristics_values ) ) {
-                        $this->set_collection_characteristic_value( $this->name, strtoupper( $characteristic ), $characteristic_name, $characteristics_values );
+                        $this->set_collection_characteristic_values( $this->name, $characteristic, $characteristic_name, $characteristics_values );
                     } else {
-                        $this->set_collection_characteristic_value( $this->name, strtoupper( $characteristic ), $characteristic_name, array( $characteristics_values ) );
+                        $this->set_collection_characteristic_values( $this->name, $characteristic, $characteristic_name, array( $characteristics_values ) );
                     }
                 }
             }
         }
+        $this->primary_key = $this->primary_key['primary'][0];
     }
     
     public function is_collection_characteristic( $collection, $characteristic, $characteristic_name ) {
         return ( $this->get_collection_characteristic_id( $collection, $characteristic, $characteristic_name ) ) ? true : false;
     }
     
-    public function set_collection_characteristic_value( $collection, $characteristic, $characteristic_name, $characteristics_values ) {
+    public function get_collection_characteristic_values_by_name( $collection, $characteristic, $characteristic_name ) {
+        if ( $this->is_collection_characteristic( $collection, $characteristic, $characteristic_name ) ) {
+            $characteristic_id = $this->get_collection_characteristic_id( $collection, $characteristic, $characteristic_name );
+        } else {
+            return false;
+        }
+        $results = $this->_get_results( 
+            'value',
+            $this->wpdb->prefix."ajaxmvc_collection_characteristic_value",
+            "WHERE characteristic_id = '%d'",
+            array( ( integer ) $characteristic_id ) );
+        return $results;
+    }
+    
+    public function get_collection_characteristic_primary_key(  $collection  ) {
+        if ( $this->is_collection_characteristic( $collection, 'PRIMARY_KEY', 'primary' ) ) {
+            $characteristic_id = $this->get_collection_characteristic_id( $collection, 'PRIMARY_KEY', 'primary' );
+            $results = $this->_get_results( 
+                'value',
+                $this->wpdb->prefix."ajaxmvc_collection_characteristic_value",
+                "WHERE characteristic_id = '%d'",
+                array( ( integer ) $characteristic_id ) );
+            return $results[0]['value'];
+        } else {
+            return false;
+        }
+    }
+    
+    public function set_collection_characteristic_values( $collection, $characteristic, $characteristic_name, $characteristics_values ) {
         if ( $this->is_collection_characteristic( $collection, $characteristic, $characteristic_name ) ) {
             $characteristic_id = $this->get_collection_characteristic_id( $collection, $characteristic, $characteristic_name );
         } else {
@@ -600,8 +681,8 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
             $response =  $this->_insert(
                 $this->wpdb->prefix.'ajaxmvc_collection_characteristic',
                 array( 'collection_id'         => ( integer ) $this->get_collection_id( $collection ),
-                       'characteristic'        => ( string ) $characteristic,
-                       'characteristic_name'   => ( string ) $characteristic_name,
+                       'characteristic'        => ( string ) strtoupper( $characteristic ),
+                       'characteristic_name'   => ( string ) strtoupper( $characteristic_name ),
                 ),
                 array( 'collection_id'         => '%d',
                        'characteristic'        => '%s',
@@ -697,7 +778,14 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
         if( $this->is_collection_attribute( $collection, $attribute ) ) {
             $attribute_id = $this->get_collection_attribute_id( $collection, $attribute );
         }
-        if ( false === array_search( $attribute, $this->fillable ) ) {
+        //necessary for sql operations on tables that are not this model
+        if ( $this->name == $collection ) {
+            $this_fillable = $this->fillable;
+        } else {
+            $model = preg_replace( '/^'.$this->wpdb->prefix.'ajaxmvc_/', '', $collection );
+            $this_fillable = ( new $model() )->fillable;
+        }
+        if ( false === array_search( $attribute, $this_fillable ) ) {
             $fillable = 0;
         } else {
             $fillable = 1;
@@ -748,7 +836,9 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
              *  and execute the drop table there eliminating any footprint
              */
             $this->create_physical_collection( "CREATE TABLE {$collection_name} AS SELECT * FROM {$collection}" );
-            $this->query( "ALTER TABLE {$collection_name} ADD PRIMARY KEY($this->primary_key)" );
+            $this->execute_collection_characteristics( $logical_collection );
+            $key = $this->get_collection_characteristic_primary_key( $collection_name );
+            $this->query( "ALTER TABLE {$collection_name} ADD PRIMARY KEY($key)" );
             $this->modify_attribute_type_if_physical_type( $logical_collection );
             return $this->transaction( 
                 function() use( $logical_collection ) {
@@ -830,6 +920,18 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
         return $attributes;
     }
     
+    public function execute_collection_characteristics( $collection ) {
+        $collection_id = $this->get_collection_id( $collection );
+        $collection_characteristics = $this->_get_results( 
+            'DISTINCT characteristic_id, characteristic, characteristic_name',
+            $this->wpdb->prefix."ajaxmvc_collection_characteristic",
+            "WHERE collection_id = '%d' ORDER BY characteristic_id",
+            array( ( integer ) $collection_id ) );
+        foreach( $collection_characteristics as $index => $characteristics_array ) {
+            $values = $this->get_collection_characteristic_values_by_name( $collection, $characteristics_array['characteristic'], $characteristics_array['characteristic_name'] );
+        }
+    }
+    
     public function get_reconciled_collection_attributes( $collection ) {
         $collection_name = $this->get_collection_name( $collection );
         $logical_attribute_set = $this->get_logical_collection_attribute_set( $collection );
@@ -908,7 +1010,7 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
         $prfx = $this->wpdb->prefix;
         $collection_name = $this->get_collection_name( $collection_id );
         $collection_name = $this->sanitize_single_sql_input( $collection_name );
-        $key = $this->get_collection_characteristic_name( $collection_id, 'PRIMARY_KEY' );
+        $key = $this->get_collection_characteristic_primary_key( $collection_id );
         $logical_collection = $this->wpdb->prepare(
             "/*qc=on*/".PHP_EOL.
             "SELECT ".PHP_EOL.
@@ -1219,6 +1321,14 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
                 $this->wpdb->prefix.'ajaxmvc_collection_entity',
                 "WHERE collection_id = '%d' AND collection_entity_id = '%d'",
                 array( ( integer ) $collection_id, ( integer ) $collection_entity_id ) );
+    }
+    
+    public function collection_entity_id_exists( $collection, $collection_entity_id ) {
+        $entity_id = $this->get_entity_id( $collection, $collection_entity_id );
+        if ( 0 < $entity_id ) {
+            return true;
+        }
+        return false;
     }
     
     public function get_next_collection_entity_id( $collection ) {
@@ -1620,8 +1730,7 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
         $attributes = $this->get_child_properties( 'destroy' );
         foreach ( $attributes as $key => $value ) {
             if ( $this->primary_key != $key ) {
-                $message = "when calling destroy the only property which may be set is \$this->$this->primary_key.";
-                ajaxmvc_core_exception::throw_error( $this, $message );
+                unset( $attributes[$key] );
             } elseif( is_array( $value ) ) {
                 $message = 'when calling destroy and using properties you may not destroy multiple entities.';
                 ajaxmvc_core_exception::throw_error( $this, $message );
@@ -1722,18 +1831,35 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
             'limit'         =>  $this->limit            .$this->break 
         );
         $this->is_modification_query = false;
-        if ( is_array( $this->insert_into ) && ! empty( $this->insert_into ) && ! isset( $this->values ) ) {
+        if ( is_array( $this->insert_into ) && ! empty( $this->insert_into ) && '' == $this->values ) {
+            if ( $this->collection_set_has_a_logical_collection( $this->collections ) && 'logical' == $this->state ) {
+                return $this->process_logical_insert_select_query( $statement );
+            }
             $destroy = array( 'values', 'update', 'set', 'delete' );
             $this->destroy_query_statement_elements( $destroy, $statement );
             $statement = $this->stringify_query_elements( $statement );
             $this->is_modification_query = true;
-        } elseif ( is_array( $this->insert_into ) && ! empty( $this->insert_into ) && isset( $this->values ) ) {
+        } elseif ( is_array( $this->insert_into ) && ! empty( $this->insert_into ) && '' != $this->values ) {
+            if ( $this->collection_set_has_a_logical_collection( $this->collections ) && 'logical' == $this->state ) {
+                return $this->process_logical_insert_value_query( $statement );
+            }
             $destroy = array( 'update', 'set', 'delete', 'select', 'from', 'where', 'group_by', 'having', 'order_by', 'limit' );
             $this->destroy_query_statement_elements( $destroy, $statement );
             $statement = $this->stringify_query_elements( $statement );
             $this->is_modification_query = true;
         } elseif( isset( $this->update ) && '' != $this->update ) {
+            if ( $this->collection_set_has_a_logical_collection( $this->collections ) ) {
+                return $this->process_logical_modification_query( $statement, 'update' );
+            }
             $destroy = array( 'insert_into', 'values', 'delete', 'select', 'from' );
+            $this->destroy_query_statement_elements( $destroy, $statement );
+            $statement = $this->stringify_query_elements( $statement );
+            $this->is_modification_query = true;
+        } elseif( isset( $this->delete ) && '' != $this->delete ) {
+            if ( $this->collection_set_has_a_logical_collection( $this->collections ) ) {
+                return $this->process_logical_modification_query( $statement, 'delete' );
+            }
+            $destroy = array( 'insert_into', 'values', 'update', 'set' , 'select' );
             $this->destroy_query_statement_elements( $destroy, $statement );
             $statement = $this->stringify_query_elements( $statement );
             $this->is_modification_query = true;
@@ -1741,11 +1867,6 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
             $destroy = array( 'insert_into', 'values', 'update', 'set', 'delete' );
             $this->destroy_query_statement_elements( $destroy, $statement );
             $statement = $this->stringify_query_elements( $statement );
-        } elseif( isset( $this->delete ) && '' != $this->delete ) {
-            $destroy = array( 'insert_into', 'values', 'update', 'set' , 'select' );
-            $this->destroy_query_statement_elements( $destroy, $statement );
-            $statement = $this->stringify_query_elements( $statement );
-            $this->is_modification_query = true;
         }
         if( $dump_sql ) {
             print( $statement );
@@ -1764,6 +1885,286 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
         return $results;
     }
     
+    public function collection_set_has_a_logical_collection( $collections ) {
+        foreach( $collections as $collection ) {
+            if ( 'logical'  == $this->get_collection_state( $collection ) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    public function verify_not_ambiguous_attribute( $collections, $update_set_array ) {
+        foreach( $update_set_array as $attribute => $value ) {
+            if( $this->value_is_a_collection_attribute( $attribute ) ) continue;
+            $occurences = 0;
+            foreach( $collections as $collection => $collection_data ) {
+                if ( $this->is_collection_attribute( $collection, $attribute ) || $attribute == $this->get_collection_characteristic_primary_key( $collection ) ) {
+                    $occurences++;
+                }
+            }
+            if ( 1 < $occurences ) {
+                ajaxmvc_core_exception::throw_error( $this, "you have ambiguous attributes in your update set statement, no data was updated. " );
+            }
+        }
+    }
+    
+    public function process_logical_insert_value_query( &$statement ) {
+        
+        //capture relevent properties
+        $insert_into = $this->insert_into;
+        $insert_into_array = $this->insert_into_array;
+        $insert_into_values_array = $this->insert_into_values_array;
+        $destroy = array( 'values', 'update', 'set', 'delete', 'insert_into', 'insert_into_str' );
+        $collection = $this->collections[0];
+        $insert_into_primary_key = $this->get_collection_characteristic_primary_key( $collection );
+
+        //clear unneeded properties
+        $this->destroy_query_statement_elements( $destroy, $statement );
+        foreach( $destroy as $property ) {
+            $this->$property = '';
+            $this->query_order[$property] = null;
+        }
+        unset( $this->is_modification_query );
+        
+        //rename record keys to insert_into keys
+        if ( is_array( $insert_into_values_array[0] ) ) {
+            foreach( $insert_into_values_array as $index => $record ) {
+                $this->verify_logical_insert_into_record( $collection, $insert_into_array, $insert_into_values_array[$index] );
+            }
+        } else {
+            $this->verify_logical_insert_into_record( $collection, $insert_into_array, $insert_into_values_array );
+        }
+        
+        //iterate and save attributes
+        $collection_entity_id = null;
+        foreach( $insert_into_values_array as $key => $value ) {
+            if ( is_array( $value ) ) {
+                foreach( $value as $attribute => $attribute_value ) {
+                    if ( $insert_into_primary_key == $attribute && null == $collection_entity_id ) {
+                        if ( $this->collection_entity_id_exists( $collection, $attribute_value ) ) {
+                            ajaxmvc_core_exception::throw_error( $this, "id of $attribute_value already exists." );
+                        } else {
+                            $collection_entity_id = $attribute_value;
+                            continue;
+                        }
+                    } elseif ( $insert_into_primary_key != $attribute && null == $collection_entity_id ) {
+                        $collection_entity_id = $this->get_next_collection_entity_id( $collection );
+                    }
+                    $this->set_collection_entity_attribute( $collection, $collection_entity_id, $attribute, $attribute_value );
+                }
+                $collection_entity_id = null;
+            } else {
+                if ( $insert_into_primary_key == $key && null == $collection_entity_id ) {
+                    if ( $this->collection_entity_id_exists( $collection, $value ) ) {
+                        ajaxmvc_core_exception::throw_error( $this, "id of $value already exists." );
+                    } else {
+                        $collection_entity_id = $value;
+                        continue;
+                    }
+                } elseif ( $insert_into_primary_key != $key && null == $collection_entity_id ) {
+                    $collection_entity_id = $this->get_next_collection_entity_id( $collection );
+                }
+                $this->set_collection_entity_attribute( $collection, $collection_entity_id, $key, $value );
+            }
+        }
+    }
+    
+    public function process_logical_insert_select_query( &$statement ) {
+        
+        //capture relevent properties                                                              
+        $insert_into = $this->insert_into;
+        $insert_into_array = $this->insert_into_array;
+        $destroy = array( 'values', 'update', 'set', 'delete', 'insert_into', 'insert_into_str' );
+        $join_meta_data = $this->join_meta_data;
+        $collection = $this->collections[0];
+        $insert_into_primary_key = $this->get_collection_characteristic_primary_key( $collection );
+
+        //clear unneeded properties
+        $this->destroy_query_statement_elements( $destroy, $statement );
+        foreach( $destroy as $property ) {
+            $this->$property = '';
+            $this->query_order[$property] = null;
+        }
+        unset( $this->is_modification_query );
+        
+        //get the result
+        $result = $this->exec();
+        
+        //iterate through results and save attributes
+        foreach( $result as $index => $record ) {
+            $this->verify_logical_insert_into_record( $collection, $insert_into_array, $record );
+            foreach( $record as $attribute => $value ) {
+                if ( $insert_into_primary_key == $attribute && null == $collection_entity_id ) {
+                    if ( $this->collection_entity_id_exists( $collection, $value ) ) {
+                        ajaxmvc_core_exception::throw_error( $this, "id of $value already exists." );
+                    } else {
+                        $collection_entity_id = $value;
+                        continue;
+                    }
+                } elseif ( $insert_into_primary_key != $attribute && null == $collection_entity_id ) {
+                    $collection_entity_id = $this->get_next_collection_entity_id( $collection );
+                }
+                $this->set_collection_entity_attribute( $collection, $collection_entity_id, $attribute, $value );
+            }
+            $collection_entity_id = null;
+        }
+    }
+    
+    public function verify_logical_insert_into_record( $collection, array &$insert_into_array, array &$record ) {
+        if ( count( $record ) != count( $insert_into_array ) ) {
+            ajaxmvc_core_exception::throw_error( $this, 'your select record attribute count does not equal your insert into attribute count.' );
+        }
+        $record_keys = $this->array_fracture( $record, 'keys' );
+        foreach( $insert_into_array as $index => $attribute ) {
+            $primary_key = $this->get_collection_characteristic_primary_key( $collection );
+            //default primary key to integer
+            if ( $primary_key == $attribute ) {
+                $insert_into_type = 'integer';
+            } else {
+                $insert_into_type = $this->get_collection_attribute_script_db_type( $collection, $attribute );
+            }
+            $record_type = gettype( $this->cast_as_physical_collection_storage_type( $record[$record_keys[$index]] ) );
+            if( $record_type == $insert_into_type ) {
+                $new_record[$attribute] = $record[$record_keys[$index]];
+            } else {
+                ajaxmvc_core_exception::throw_error( $this, 'your select record attribute type does not match your insert into attribute match.' );
+            }
+        }
+        $record = $new_record;
+    }
+    
+    public function process_logical_modification_query( &$statement, $type ) {
+        
+        //capture relevent properties
+        if ( 'update' == $type ) {
+            $this->from = preg_replace( '/^UPDATE/', 'FROM', $this->update );
+            $update_set_array = $this->update_set_array;
+            $this->verify_not_ambiguous_attribute( $this->join_meta_data, $update_set_array );
+            $destroy = array( 'insert_into', 'values', 'update', 'set', 'delete' );
+            $join_meta_data = $this->join_meta_data;
+        } elseif ( 'delete' == $type ) {
+            $delete_array = $this->delete_array;
+            $destroy = array( 'insert_into', 'values', 'update', 'set' , 'select', 'delete' );
+            $join_meta_data = $this->join_meta_data;
+        }
+        
+        //clear unneeded properties
+        $this->destroy_query_statement_elements( $destroy, $statement );
+        foreach( $destroy as $property ) {
+            $this->$property = '';
+            $this->query_order[$property] = null;
+        }
+        unset( $this->is_modification_query );
+        
+        //get a result set of all relevent join attributes
+        $logical_modification_query_select = $this->get_logical_modification_query_select();
+        $this->select( $logical_modification_query_select );
+        /*
+         * IMPORTANT:
+         * all of the other query properties conditions are still set
+         * resulting in a select query which runs based on all of the from,join,where,having,group by
+         * that were populated in the original update statement, we run a select query
+         * based on all of these conditions where the select fields or attributes
+         * are the fields of the join, based on these fields we can select the collections_entity_id or
+         * primary_key, which is a unique identifier for a collection and then we can run a 
+         * set_collection_entity_attribute foreach identifier
+         * based on the original set clause and these collection_entity_id s'
+         * NOTE:
+         * This exec() will reset all query properties
+         */
+        $result = $this->exec();
+        
+        //iterate through appropriate data structures and split query results into collection based data structures
+        $collection_entity_id_parameters_set = array();
+        foreach ( $join_meta_data as $collection => $join_attributes ) {
+            $collection_entity_id_parameters_record = array();
+            foreach( $result as $record_index => $record ) {
+                $collection_entity_id_parameters = array();
+                foreach( $record as $attribute => $value ) {
+                    if ( 1 == preg_match( '/^'.$collection.'/', $attribute ) ) {
+                        $attribute_name = preg_replace( '/^'.$collection.'_/', "$collection.", $attribute );
+                        $collection_entity_id_parameters[$attribute_name] = $value;
+                    }
+                }
+                $collection_entity_id_parameters_record[] = $collection_entity_id_parameters;
+            }
+            $collection_entity_id_parameters_set[$collection] = $collection_entity_id_parameters_record;
+        }
+
+        //iterate through new data structures
+        foreach( $collection_entity_id_parameters_set as $collection => $record_set ) {
+            foreach( $record_set as $index => $record ) {
+                $primary_key = $this->get_collection_characteristic_primary_key( $collection );
+                if ( $this->is_collection( $collection ) && 'logical' == $this->get_collection_state( $collection ) ) {
+                    $this_collection = $this->get_logical_collection( $collection );
+                } else {
+                    $this_collection = $collection;
+                }
+                $sql = "SELECT $primary_key FROM $this_collection WHERE ".implode( ' AND ', array_map( function ( $v, $k ) { return $k . ' = ' . $v; }, $record, array_keys( $record ) ) );
+                $collection_entity_id = $this->wpdb->get_var( $sql );
+                if ( 'update' == $type ) {
+                    $this->process_logical_update( $update_set_array, $collection, $primary_key, $collection_entity_id );
+                } elseif ( 'delete' == $type ) {
+                    $this->process_logical_delete( $delete_array, $collection, $primary_key, $collection_entity_id );
+                }
+            }
+        }
+    }
+    
+    public function process_logical_update( $update_set_array, $collection, $primary_key, $collection_entity_id  ) {
+        foreach( $update_set_array as $attribute => $value ) {
+            //we have already checked for ambigous update attributes
+            if ( $this->is_collection_attribute( $collection, $attribute ) || $attribute == $this->get_collection_characteristic_primary_key( $collection ) ) {
+                if ( 'logical'  == $this->get_collection_state( $collection ) ) {
+                    $this->set_collection_entity_attribute( $collection, $collection_entity_id, $attribute, $value );
+                } elseif ( 'physical'  == $this->get_collection_state( $collection ) ) {
+                    $this->_update(
+                        $collection,
+                        array( $attribute   => $value ),
+                        array( $primary_key    => $collection_entity_id ),
+                        array( $attribute   => $this->get_statement_prepare_type( gettype( $value ) )) ,
+                        array( $primary_key => '%d' ) );
+                }
+            }
+        }
+    }
+    
+    public function process_logical_delete( $delete_array, $collection, $primary_key, $collection_entity_id ) {
+        if ( is_array( $delete_array ) ) {
+            foreach( $delete_array as $delete_collection ) {
+                if ( $collection ==  $delete_collection ) {
+                    if ( 'logical'  == $this->get_collection_state( $collection ) ) {
+                        $this->destroy_logical_entity( $collection, $collection_entity_id );
+                    } elseif ( 'physical'  == $this->get_collection_state( $collection ) ) {
+                        $this->_delete(
+                            $collection,
+                            array( $primary_key    => $collection_entity_id ),
+                            array( $primary_key => '%d' ) );
+                    }
+                }
+            }
+        }
+    }
+    
+    public function get_logical_modification_query_select() {
+        if ( ! is_array( $this->join_meta_data ) || 1 == count( $this->join_meta_data ) ) {
+            $primary_key = $this->get_collection_characteristic_primary_key( $this->collections[0] );
+            return array( "{$primary_key} AS {$this->collections[0]}_{$primary_key}" );
+        }
+        $logical_modification_query_select = array();
+        foreach( $this->join_meta_data as $collection => $join_attributes ) {
+            if ( is_array( $join_attributes ) ) {
+                foreach( $join_attributes as $index => $join_attribute ) {
+                    //guarantees uniqueness of the field name
+                    $join_attributes[$index] = $join_attribute.' AS '.preg_replace( '/\./', '_', $join_attribute );
+                }
+                $logical_modification_query_select = array_merge( $logical_modification_query_select, $join_attributes );
+            }
+        }
+        return $logical_modification_query_select;
+    }
+    
     public function cast_query_results( array $collections, array &$results ) {
         if ( empty( $collections ) ) return;
         if ( is_array( $results[0] ) ) {
@@ -1775,7 +2176,8 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
                 //default everything to string
                 $attribute_type_map[$attribute] = 'string';
                 //if it is id we can assume integer
-                if ( $this->primary_key == $attribute ) {
+                $primary_key = $this->get_collection_characteristic_primary_key( $collection );
+                if ( $primary_key == $attribute ) {
                     $attribute_type_map[$attribute] = 'integer';
                     break;
                 }
@@ -1826,6 +2228,11 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
     }
     
     public function destroy_query_properties() {
+        $this->query_order[] = 'delete_array';
+        $this->query_order[] = 'insert_into_array';
+        $this->query_order[] = 'update_set_array';
+        $this->query_order[] = 'is_from_join';
+        $this->query_order[] = 'join_meta_data';
         $this->query_order[] = 'collections';
         foreach( $this->query_order as $key => $property ) {
             $this->{( string )$property} = '';
@@ -1849,8 +2256,9 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
     }
     
     public function process_values_clause( array $values ) {
-        $this->verfiy_values_clause( $values );
-        $index = 0; $string = '';
+        $this->verify_values_clause( $values );
+        $index = 0; 
+        $string = '';
         array_map( function($val) use( &$index, &$string ) {
             $string .= $this->wpdb->prepare( $this->get_statement_prepare_type( gettype( $val ) ), array( $val ) ).', ';
             $index++;
@@ -1864,6 +2272,9 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
         && ( 1 != preg_match( '/^(where)$/',   $internal_multi_type ) )
         && ( 1 != preg_match( '/^(having)$/',  $internal_multi_type ) ) ) {
             ajaxmvc_core_exception::throw_error( $this,  'conditions may ony be processed after where() or having() called.' );
+        }
+        if ( true == $this->is_from_join ) {
+            $this->process_join_meta_data( $conditions, 'logical' );
         }
         if ( array_key_exists( 0, $conditions ) && is_array( $conditions[0] ) ) {
             /*
@@ -1976,6 +2387,17 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
         }
     }
     
+    public function value_is_a_collection_attribute( $condition ) {
+        if ( 1 == substr_count ( $condition, '.' ) ) {
+            $collection = preg_replace( '/\.(.*)$/', '', $condition );
+            $attribute = preg_replace( '/^(.*)\./', '', $condition );
+            if ( $this->is_collection_attribute( $collection, $attribute ) || $attribute == $this->get_collection_characteristic_primary_key( $collection ) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
     public function sanitize_and_prepare_condition( array $conditions ) {
         if ( 3 !=  count( $conditions ) ) {
             ajaxmvc_core_exception::throw_error( $this,  'logical clause must contain exactly 3 terms: attribute, operator, value.' );
@@ -1987,7 +2409,11 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
         //convert boolean to integer
         $value = $this->cast_as_physical_collection_storage_type( $conditions[2] );
         //set the value place equal to the $wpdb::prepare type of %d,%f,%s
-        $conditions[2] = $this->get_statement_prepare_type( gettype( $conditions[2] ) );
+        if ( $this->value_is_a_collection_attribute( $conditions[2] ) ) {
+            $conditions[2] = $this->sanitize_single_sql_input( $conditions[2] );
+        } else {
+            $conditions[2] = $this->get_statement_prepare_type( gettype( $conditions[2] ) );
+        }
         $conditions[1] = $this->sanitize_single_sql_input( $conditions[1] );
         $conditions[0] = $this->sanitize_single_sql_input( $conditions[0] );
         //prepare and return the statement
@@ -2065,7 +2491,7 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
         }
     }
     
-    public function verfiy_values_clause( array $values ) {
+    public function verify_values_clause( array $values ) {
         if ( 1 != preg_match( '/^(insert_into)$/', $this->last_query_clause ) ) {
             ajaxmvc_core_exception::throw_error( $this, 'insert_into() must be called before values().');
         }
@@ -2086,6 +2512,7 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
     }
     
     public function get_insert_clause( $collection, array $attributes ) {
+        $this->collections[] = $collection;
         return "INSERT INTO {$collection} (".$this->get_attribute_names_from_array( $attributes ).') ';
     }
     
@@ -2102,9 +2529,26 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
     
     public function get_update_clause( $collection ) {
         if ( is_array( $collection ) ) {
-            return 'UPDATE '.implode(', ', $collection  );
+            $collection_string = '';
+            foreach( $collection as $single_collection ) {
+                $this->collections[] = $single_collection;
+                $this->join_meta_data[$single_collection] = true;
+                if ( $this->is_collection( $single_collection ) && 'logical' == $this->get_collection_state( $single_collection ) ) {
+                    $collection_string .= $this->get_logical_collection( $single_collection ).', ';
+                } elseif ( $this->is_collection( $single_collection ) && 'physical' == $this->get_collection_state( $single_collection ) ) {
+                    $collection_string .= $single_collection.', ';
+                }
+            }
+            return 'UPDATE '.preg_replace( '/,\s$/', ' ', $collection_string );
+        } else {
+            $this->collections[] = $collection;
+            $this->join_meta_data[$collection] = true;
+            if ( $this->is_collection( $collection ) && 'logical' == $this->get_collection_state( $collection ) ) {
+                return 'UPDATE '.$this->get_logical_collection( $collection ).' ';
+            } elseif ( $this->is_collection( $collection ) && 'physical' == $this->get_collection_state( $collection ) ) {
+                return "UPDATE {$collection} ";
+            }
         }
-        return 'UPDATE '.$collection;
     }
     
     public function get_set_clause( array $attributes_to_values ) {
@@ -2121,12 +2565,28 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
     public function get_select_clause( array $attributes ) {
         return 'SELECT '.$this->get_attribute_names_from_array( $attributes ).' ';
     }
-    
+
     public function get_from_clause( $collection ) {
-        if ( $this->is_collection( $collection ) && 'logical' == $this->get_collection_state( $collection ) ) {
-            return 'FROM '.$this->get_logical_collection( $collection ).' ';
+        if ( is_array( $collection ) ) {
+            $collection_string = '';
+            foreach( $collection as $single_collection ) {
+                $this->collections[] = $single_collection;
+                $this->join_meta_data[$single_collection] = true;
+                if ( $this->is_collection( $single_collection ) && 'logical' == $this->get_collection_state( $single_collection ) ) {
+                    $collection_string .= $this->get_logical_collection( $single_collection ).', ';
+                } elseif ( $this->is_collection( $single_collection ) && 'physical' == $this->get_collection_state( $single_collection ) ) {
+                    $collection_string .= $single_collection.', ';
+                }
+            }
+            return 'FROM '.preg_replace( '/,\s$/', ' ', $collection_string );
         } else {
-            return "FROM {$collection} ";
+            $this->collections[] = $collection;
+            $this->join_meta_data[$collection] = true;
+            if ( $this->is_collection( $collection ) && 'logical' == $this->get_collection_state( $collection ) ) {
+                return 'FROM '.$this->get_logical_collection( $collection ).' ';
+            } else {
+                return "FROM {$collection} ";
+            }
         }
     }
     
@@ -2238,6 +2698,7 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
      */
     
     public function insert_into( $collection, array $attributes ) {
+        $this->insert_into_array = $attributes;
         $this->insert_into['statement'] = $this->get_insert_clause( $collection, $attributes );
         $this->insert_into['count'] = count( $attributes );
         $this->set_query_order( 'insert_into' );
@@ -2245,24 +2706,30 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
     }
     
     public function values( array $values ) {
+        $this->insert_into_values_array = $values;
         $this->values = $this->get_values_clause( $values );
         $this->set_query_order( 'values' );
         return $this;
     }
     
     public function update( $collection ) {
+        if ( is_array( $collection ) && 1 < count( $collection ) ) {
+            $this->is_from_join = true;
+        }
         $this->update = $this->get_update_clause( $collection );
         $this->set_query_order( 'update' );
         return $this;
     }
     
     public function set( array $attributes_to_values ) {
+        $this->update_set_array = $attributes_to_values;
         $this->set = $this->get_set_clause( $attributes_to_values );
         $this->set_query_order( 'set' );
         return $this;
     }
     
     public function delete( $collection = null ) {
+        $this->delete_array = $collection;
         $this->delete = $this->get_delete_clause( $collection );
         $this->set_query_order( 'delete' );
         return $this;
@@ -2284,8 +2751,10 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
     }
     
     public function from( $collection ) {
+        if ( is_array( $collection ) && 1 < count( $collection ) ) {
+            $this->is_from_join = true;
+        }
         $this->from = $this->get_from_clause( $collection );
-        $this->collections[] = $collection;
         $this->set_query_order( 'from' );
         return $this;
     }
@@ -2295,7 +2764,7 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
             ajaxmvc_core_exception::throw_error( $this,  "{$join_type} is not a valid join type." );
         }
         $join = ( null == $join_type ) ? 'INNER JOIN' : "{$join_type} JOIN";
-        if( $this->select || $this->delete ) {
+        if( $this->select ) {
             $this->from = preg_replace( '/^FROM /', '', $this->from );
             $this->join = array( 'collections' => array( $this->from, $join, $collection ) );
             /*
@@ -2304,9 +2773,16 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
              * return php types to the user
              */
             $this->collections[] = $collection;
+        } elseif( $this->delete ) {
+            $this->from = preg_replace( '/^FROM /', '', $this->from );
+            $this->join = array( 'collections' => array( $this->from, $join, $collection ) );
+            $this->collections[] = $collection;
+            $this->join_meta_data[$collection] = true;
         } elseif( $this->update ) {
             $this->update = preg_replace( '/^UPDATE /', '', $this->update );
             $this->join = array( 'collections' => array( $this->update, $join, $collection ) );
+            $this->collections[] = $collection;
+            $this->join_meta_data[$collection] = true;
         }
         $this->set_query_order( 'join' );
         return $this;
@@ -2314,13 +2790,75 @@ class ajaxmvc_core_model extends ajaxmvc_core_object_factory {
     
     public function on( array $join_attributes ) {
         $this->join['attributes'] = $join_attributes;
-        if( $this->select || $this->delete ) {
+        $this->process_join_meta_data( $join_attributes, 'on' );
+        if( $this->select ) {
+            $this->from = 'FROM '.$this->get_join_clause( $this->join );
+        } elseif( $this->delete ) {
             $this->from = 'FROM '.$this->get_join_clause( $this->join );
         } elseif( $this->update ) {
             $this->update = 'UPDATE '.$this->get_join_clause( $this->join );
         }
         $this->set_query_order( 'on' );
         return $this;
+    }
+    
+    public function process_join_meta_data( array $join_attributes, $call_type ) {
+        if ( is_array( $join_attributes[0] ) ) {
+            $first_join_attributes = array();
+            $second_join_attributes = array();
+            foreach( $join_attributes as $index => $attribute_array ) {
+                if ( 1 == preg_match( '/(and|or)/', $attribute_array[0] ) ) array_shift( $attribute_array );
+                if ( ! $this->value_is_a_collection_attribute( $attribute_array[2] ) ) continue;
+                if ( ! $this->is_join_attribute_in_join_meta_data( $attribute_array[0] ) ) {
+                    $first_join_attributes[] = $attribute_array[0];
+                    if ( 1 == preg_match( '/\..*$/',  $attribute_array[0] ) ) {
+                        $first_join_collection = preg_replace( '/\..*$/', '', $attribute_array[0] );
+                    } elseif ( 'on' == $call_type || ( 'logical' == $call_type && $this->is_from_join ) ) {
+                        ajaxmvc_core_exception::throw_error( $this, 'you must explicitly identify collection in on() statement, i.e. collection.attribute' );
+                    }
+                }
+                if ( ! $this->is_join_attribute_in_join_meta_data( $attribute_array[2] ) ) {
+                    $second_join_attributes[] = $attribute_array[2];
+                    if ( 1 == preg_match( '/\..*$/',  $attribute_array[2] ) ) {
+                        $second_join_collection = preg_replace( '/\..*$/', '', $attribute_array[2] );
+                    } elseif ( 'on' == $call_type || ( 'logical' == $call_type && $this->is_from_join ) ) {
+                        ajaxmvc_core_exception::throw_error( $this, 'you must explicitly identify collection in on() statement, i.e. collection.attribute' );
+                    }
+                }
+            }
+            $this->join_meta_data[$first_join_collection] = $first_join_attributes;
+            $this->join_meta_data[$second_join_collection] = $second_join_attributes;
+        } else {
+            if ( 1 == preg_match( '/(and|or)/', $join_attributes[0] ) ) array_shift( $join_attributes );
+            if ( ! $this->value_is_a_collection_attribute( $join_attributes[2] ) ) return;
+            if ( ! $this->is_join_attribute_in_join_meta_data( $join_attributes[0] ) ) {
+                if ( 1 == preg_match( '/\..*$/',  $join_attributes[0] ) ) {
+                    $first_join_collection = preg_replace( '/\..*$/', '', $join_attributes[0] );
+                } elseif ( 'on' == $call_type || ( 'logical' == $call_type && $this->is_from_join ) ) {
+                    ajaxmvc_core_exception::throw_error( $this, 'you must explicitly identify collection in on() statement, i.e. collection.attribute' );
+                }
+                $this->join_meta_data[$first_join_collection ] = array( $join_attributes[0] );
+            }
+            if ( ! $this->is_join_attribute_in_join_meta_data( $join_attributes[2] ) ) {
+                if ( 1 == preg_match( '/\..*$/',  $join_attributes[2] ) ) {
+                    $second_join_collection = preg_replace( '/\..*$/', '', $join_attributes[2] );
+                } elseif ( 'on' == $call_type || ( 'logical' == $call_type && $this->is_from_join ) ) {
+                    ajaxmvc_core_exception::throw_error( $this, 'you must explicitly identify collection in on() statement, i.e. collection.attribute' );
+                }
+                $this->join_meta_data[$second_join_collection] = array( $join_attributes[2] );
+            }
+        }
+    }
+    
+    public function is_join_attribute_in_join_meta_data( $string ) {
+        if( ! is_array( $this->join_meta_data ) ) return false;
+        foreach( $this->join_meta_data as $index => $join_attribute_array ) {
+            if ( ! is_array( $join_attribute_array ) ) continue;
+            if ( false !== array_search( $string, $join_attribute_array ) ) {
+                return true;
+            }
+        }  
+        return false;
     }
     
     public function where( array $conditions, $inclusive = null, $nesting = null, $strip_nest = null ) {

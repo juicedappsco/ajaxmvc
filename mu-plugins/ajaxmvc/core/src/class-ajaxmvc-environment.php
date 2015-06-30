@@ -28,7 +28,7 @@ class ajaxmvc_core_environment extends ajaxmvc_core_object_factory {
                     while ( false !== ( $namespace = readdir( $handle ) ) ) {
                         if ( preg_match( '/^(..|.)$/', $namespace) == 1 ) continue;
                         if ( is_dir( $AM_LOCAL_MODULE_PATH.$namespace.'/' ) ) {
-                            $is_ajaxmvc_activated = ( new ajaxmvc_core_state() )->plugin_is_ajaxmvc_activated($plugin);
+                            $is_ajaxmvc_activated = ( new ajaxmvc_core_plugin() )->plugin_is_ajaxmvc_activated($plugin);
                             if ( ! $is_ajaxmvc_activated ) continue;
                             // If there are namespace level includes, include them
                             if ( is_dir( $AM_LOCAL_MODULE_PATH.$namespace.'/includes/src' ) ) {
