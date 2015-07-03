@@ -1,5 +1,5 @@
 INTRODUCTION:     
-This is a Convention Based MVC framework - including full ORM - that is fully compatible wth WordPress, currently it only supports
+This is a Convention Based MVC framework - including full ORM - that is fully compatible with WordPress, currently it only supports
 AJAX Requests but it will soon be a fully functioning traditional MVC (a standard conventional MVC router is already written and
 functioning, it needs to be integrated with the WordPress native routing system, a class will probably be designed to handle this
 integration very soon). 
@@ -26,49 +26,6 @@ If you are able to name things in such a way that the convention cleverly mirror
 configurations can be abstracted away, this framework is an attempt to solve that problem. Don't worry, for all of you configuration lovers out there, 
 there will soon be a single PHP based configuration file - inspired by the Zend Framework (why involve the complexity of another syntax such as XML or JSON) - 
 which will allow the developer to map specific requests to any controller location providing an alternative to following the suggested naming conventions.
-    
-PLUGIN FILE STRUCTURE:
-EXISTING WP STRUCTURE:
-/wp-content/plugins/plugin-name/
-
-LOCAL CODE POOL where your namespaces and modules live, there are plans for a core overwrite code pool as well:
-/wp-content/plugins/plugin-name/local/
-
-NAMESPACES you may have multiple namespaces within a plugin:
-/wp-content/plugins/plugin-name/local/namespace/
-
-NAMESPACES INCLUDES:
-/wp-content/plugins/plugin-name/local/namespace/includes/
-
-NAMESPACE INCLUDES SRC you may keep namespace php include files here:
-/wp-content/plugins/plugin-name/local/namespace/includes/src/
-
-NAMESPACE INCLUDES MYSQL you may keep namespace mysql de/activation files here:
-/wp-content/plugins/plugin-name/local/namespace/includes/mysql/
-
-NAMESPACE INCLUDES CSS you may keep namespace css files here:
-/wp-content/plugins/plugin-name/local/namespace/includes/css/
-
-NAMESPACE INCLUDES JS you may keep namespace JS files here:
-/wp-content/plugins/plugin-name/local/namespace/includes/js/
-
-MODULES you may have multiple modules within a namespace:
-/wp-content/plugins/plugin-name/local/namespace/module/
-
-MODULE CONTROLLERS you may have multiple controllers within a module:
-/wp-content/plugins/plugin-name/local/namespace/module/controller/
-
-MODULE MODELS you may have multiple models within a module:
-/wp-content/plugins/plugin-name/local/namespace/module/model/
-
-MODULE HTML VIEWS you may have multiple html views within a module:
-/wp-content/plugins/plugin-name/local/namespace/module/view/html/
-
-MODULE JS VIEWS you may have multiple css files within a module:
-/wp-content/plugins/plugin-name/local/namespace/module/view/js/
-
-MODULE CSS VIEWS you may have multiple js files within a module:
-/wp-content/plugins/plugin-name/local/namespace/module/view/css/
 
 ORM:
 Ajaxmvc ORM draws some syntactical inspiration from Eloquent ORM. It aims to provide the same functionality though works very differently under the hood, 
@@ -91,8 +48,7 @@ and the advantages of Traditional DB Schema in production. The ORM can easily
 transition models between both states. So if a model is in production you can migrate a copy to your
 development server, change state to logical, and modify it just as you would in its original development, just
 make sure to change state to physical in your activation class and methods - oh yea we have those too!
-All ORM methods save(),destroy(),get() are compatible with both states, as well as all querying methods of the SQL object chain methods
-except delete(),insert(), and update() may only be used in a physical state - plans to change this in the future.
+All ORM methods save(),destroy(),get(),delete(),insert(), and update() are compatible with both states, as well as all querying methods of the SQL object chain methods.
 Any modifications made to the physical schema of a model when moving to a logical state (traditional EAV) will be 
 retained for a later transition back to physical state, including types - yes types, keys, foreign keys, indices, etc. etc. 
 When transitioning states all data will be retained as well.
